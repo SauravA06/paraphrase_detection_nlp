@@ -6,55 +6,134 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
 import numpy as np
 
-# --- Load models ---
-st.title("Paraphrase Detection")
+# --- Configuration ---
+# Set thresholds based on typical project results (these can be fine-tuned)
+SBERT_THRESHOLD = 0.70
+TFIDF_THRESHOLD = 0.60
+BERT_MODEL_NAME = 'textattack/bert-base-uncased-MRPC'
+# This BERT model is pre-trained/fine-tuned on the Microsoft Research Paraphrase Corpus (MRPC)
+# Class 1 = Paraphrase, Class 0 = Not Paraphrase
+
+# --- Application Title ---
+st.set_page_config(page_title="Paraphrase Detection App", layout="centered")
+st.title("Paraphrase Detection App")
+st.markdown("Use different models to assess the semantic similarity between two sentences.")
+
 
 # --- Model Loading (Cached) ---
-# This is the correct way to load models in Streamlit.
-# It loads them once and keeps them in memory.
+# Use st.cache_resource to load large models only once, which is critical for performance.
 @st.cache_resource
 def load_models():
-    print("--- LOADING ALL MODELS (This should only run once) ---")
+    st.info("🔄 Loading all models... (This happens only on the first run)")
     
-    # TF-IDF
+    # 1. TF-IDF
     vectorizer = TfidfVectorizer()
     
-    # SBERT (Using the best model)
+    # 2. SBERT (Universal Sentence Embeddings)
     sbert_model = SentenceTransformer('all-mpnet-base-v2', device='cpu')
     sbert_model.eval()
     
+    # 3. BERT (Sequence Classification)
+    bert_tokenizer = AutoTokenizer.from_pretrained('textattack/bert-base-uncased-MRPC')
+    bert_model = AutoModelForSequenceClassification.from_pretrained('textattack/bert-base-uncased-MRPC')
     
-    return vectorizer, sbert_model
+    return vectorizer, sbert_model, bert_tokenizer, bert_model
 
 # Load the models using the cached function
-# You will see the "LOADING" print message in your terminal the first time.
-vectorizer, sbert_model= load_models()
-# --- End Model Loading ---
+vectorizer, sbert_model, bert_tokenizer, bert_model = load_models()
+st.success("✅ Models loaded successfully!")
 
 
 # --- Input Section ---
+st.header("Input Sentences")
+sent1 = st.text_area("Sentence 1", placeholder="Enter the first sentence here...", height=100)
+sent2 = st.text_area("Sentence 2", placeholder="Enter the second sentence here...", height=100)
 
-# The long default text has been removed from both lines
-sent1 = st.text_area("Sentence 1", placeholder="Enter the first paragraph here...")
-sent2 = st.text_area("Sentence 2", placeholder="Enter the second paragraph here...")
-
-model_choice = st.selectbox("Choose model", ["SBERT", "TF-IDF + Cosine"])
+model_choice = st.selectbox(
+    "Choose a Model for Prediction", 
+    ["SBERT", "BERT (Classification)", "TF-IDF + Cosine"]
+)
 
 # --- Run on button click ---
-if st.button("Check Paraphrase"):
+if st.button("Check Paraphrase", type="primary"):
+    if not sent1 or not sent2:
+        st.error("Please enter text in both Sentence 1 and Sentence 2 fields.")
+        st.stop()
+        
+    st.subheader(f"Results using {model_choice}:")
+    
+    # --- 1. TF-IDF + Cosine ---
     if model_choice == "TF-IDF + Cosine":
+        # Fit on both sentences and transform
         vectors = vectorizer.fit_transform([sent1, sent2])
+        # Calculate similarity of the two vectors
         sim = cosine_similarity(vectors[0:1], vectors[1:2])[0][0]
-        st.write(f"**Similarity:** {sim:.2f}")
-        st.write("✅ Paraphrased" if sim > 0.6 else "❌ Not Paraphrased")
+        
+        st.metric(label="Cosine Similarity Score", value=f"{sim:.4f}")
+        
+        if sim >= TFIDF_THRESHOLD:
+            st.success(f"✅ Paraphrased (Score > {TFIDF_THRESHOLD})")
+        else:
+            st.warning(f"❌ Not Paraphrased (Score ≤ {TFIDF_THRESHOLD})")
+        st.caption("TF-IDF measures word overlap importance; it often struggles with synonyms.")
 
+
+    # --- 2. SBERT ---
     elif model_choice == "SBERT":
-        emb1 = sbert_model.encode(sent1)
-        emb2 = sbert_model.encode(sent2)
+        # Encode sentences into dense vectors
+        with st.spinner('Encoding sentences...'):
+            emb1 = sbert_model.encode(sent1, convert_to_tensor=True)
+            emb2 = sbert_model.encode(sent2, convert_to_tensor=True)
 
-        # Calculate cosine similarity manually with numpy
-        sim = np.dot(emb1, emb2) / (np.linalg.norm(emb1) * np.linalg.norm(emb2))
+        # Calculate cosine similarity using PyTorch/NumPy
+        sim = torch.nn.functional.cosine_similarity(emb1, emb2, dim=0).item()
+        
+        st.metric(label="Cosine Similarity Score (Semantic)", value=f"{sim:.4f}")
+        
+        if sim >= SBERT_THRESHOLD:
+            st.success(f"✅ Paraphrased (Score > {SBERT_THRESHOLD})")
+        else:
+            st.warning(f"❌ Not Paraphrased (Score ≤ {SBERT_THRESHOLD})")
+        st.caption("SBERT captures deep semantic meaning; the score reflects meaning equivalence.")
 
-        st.write("--- RESULT ---")
-        st.write(f"**Similarity:** {sim:.2f}")
-        st.write("✅ Paraphrased" if sim > 0.7 else "❌ Not Paraphrased")
+
+    # --- 3. BERT (Classification) ---
+    elif model_choice == "BERT (Classification)":
+        with st.spinner('Running BERT classification...'):
+            # 1. Tokenize the sentence pair
+            inputs = bert_tokenizer(
+                sent1, 
+                sent2, 
+                return_tensors="pt", 
+                padding=True, 
+                truncation=True
+            )
+
+            # 2. Run inference
+            with torch.no_grad():
+                outputs = bert_model(**inputs)
+            
+            # 3. Get predicted class and confidence
+            logits = outputs.logits
+            probabilities = torch.softmax(logits, dim=1).squeeze()
+            
+            # predicted_class_id: 1 is Paraphrase, 0 is Not Paraphrase
+            predicted_class_id = torch.argmax(logits, dim=1).item()
+            
+            # Get the confidence score for the predicted class
+            confidence = probabilities[predicted_class_id].item()
+
+            
+            # Determine the final result based on the model's output
+            if predicted_class_id == 1:
+                result_text = "✅ Paraphrased"
+                st.metric(label="Prediction", value=result_text)
+                st.success(f"Confidence in 'Paraphrased': {confidence:.4f}")
+                st.caption(f"Probability of 'Not Paraphrase' (Class 0): {probabilities[0].item():.4f}")
+            else:
+                result_text = "❌ Not Paraphrased"
+                st.metric(label="Prediction", value=result_text)
+                st.warning(f"Confidence in 'Not Paraphrased': {confidence:.4f}")
+                st.caption(f"Probability of 'Paraphrase' (Class 1): {probabilities[1].item():.4f}")
+                
+        st.caption("BERT is fine-tuned to classify the pair directly, giving a high-confidence prediction.")
