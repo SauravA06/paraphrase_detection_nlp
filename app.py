@@ -75,7 +75,6 @@ if st.button("Check Paraphrase", type="primary"):
             st.success(f"✅ Paraphrased (Score > {TFIDF_THRESHOLD})")
         else:
             st.warning(f"❌ Not Paraphrased (Score ≤ {TFIDF_THRESHOLD})")
-        st.caption("TF-IDF measures word overlap importance; it often struggles with synonyms.")
 
 
     # --- 2. SBERT ---
@@ -94,7 +93,6 @@ if st.button("Check Paraphrase", type="primary"):
             st.success(f"✅ Paraphrased (Score > {SBERT_THRESHOLD})")
         else:
             st.warning(f"❌ Not Paraphrased (Score ≤ {SBERT_THRESHOLD})")
-        st.caption("SBERT captures deep semantic meaning; the score reflects meaning equivalence.")
 
 
     # --- 3. BERT (Classification) ---
@@ -129,14 +127,11 @@ if st.button("Check Paraphrase", type="primary"):
                 result_text = "✅ Paraphrased"
                 st.metric(label="Prediction", value=result_text)
                 st.success(f"Confidence in 'Paraphrased': {confidence:.4f}")
-                st.caption(f"Probability of 'Not Paraphrase' (Class 0): {probabilities[0].item():.4f}")
             else:
                 result_text = "❌ Not Paraphrased"
                 st.metric(label="Prediction", value=result_text)
                 st.warning(f"Confidence in 'Not Paraphrased': {confidence:.4f}")
-                st.caption(f"Probability of 'Paraphrase' (Class 1): {probabilities[1].item():.4f}")
-                
-        st.caption("BERT is fine-tuned to classify the pair directly, giving a high-confidence prediction.")
+
 
 
 
