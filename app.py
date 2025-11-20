@@ -24,7 +24,7 @@ st.markdown("Use different models to assess the semantic similarity between two 
 # Use st.cache_resource to load large models only once, which is critical for performance.
 @st.cache_resource
 def load_models():
-    st.info("🔄 Loading all models... (This happens only on the first run)")
+    st.info("🔄 Loading all models...")
     
     # 1. TF-IDF
     vectorizer = TfidfVectorizer()
@@ -51,7 +51,7 @@ sent2 = st.text_area("Sentence 2", placeholder="Enter the second sentence here..
 
 model_choice = st.selectbox(
     "Choose a Model for Prediction", 
-    ["SBERT", "BERT (Classification)", "TF-IDF + Cosine"]
+    [ "TF-IDF + Cosine", "BERT (Classification)", "SBERT", ]
 )
 
 # --- Run on button click ---
@@ -137,3 +137,4 @@ if st.button("Check Paraphrase", type="primary"):
                 st.caption(f"Probability of 'Paraphrase' (Class 1): {probabilities[1].item():.4f}")
                 
         st.caption("BERT is fine-tuned to classify the pair directly, giving a high-confidence prediction.")
+
