@@ -98,8 +98,8 @@ if st.button("Check Paraphrase", type="primary"):
 
 
     # --- 3. BERT (Classification) ---
-    elif model_choice == "BERT (Classification)":
-        with st.spinner('Running BERT classification...'):
+    elif model_choice == "BERT":
+        with st.spinner('Running BERT...'):
             # 1. Tokenize the sentence pair
             inputs = bert_tokenizer(
                 sent1, 
@@ -137,5 +137,6 @@ if st.button("Check Paraphrase", type="primary"):
                 st.caption(f"Probability of 'Paraphrase' (Class 1): {probabilities[1].item():.4f}")
                 
         st.caption("BERT is fine-tuned to classify the pair directly, giving a high-confidence prediction.")
+
 
 
