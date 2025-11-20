@@ -51,7 +51,7 @@ sent2 = st.text_area("Sentence 2", placeholder="Enter the second sentence here..
 
 model_choice = st.selectbox(
     "Choose a Model for Prediction", 
-    [ "TF-IDF + Cosine", "BERT (Classification)", "SBERT", ]
+    [ "TF-IDF + Cosine", "BERT", "SBERT"]
 )
 
 # --- Run on button click ---
@@ -137,4 +137,5 @@ if st.button("Check Paraphrase", type="primary"):
                 st.caption(f"Probability of 'Paraphrase' (Class 1): {probabilities[1].item():.4f}")
                 
         st.caption("BERT is fine-tuned to classify the pair directly, giving a high-confidence prediction.")
+
 
